@@ -1,0 +1,226 @@
+:root {
+  color: #111827;
+  background: radial-gradient(circle at top left, #fef3c7 0%, #fff7ed 40%, #f3f4f6 100%);
+  font-family: 'Avenir Next', 'Segoe UI', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body,
+html,
+#root {
+  margin: 0;
+  min-height: 100vh;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  min-height: 100vh;
+  gap: 16px;
+  padding: 16px;
+}
+
+.panel {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: 0 12px 30px rgba(17, 24, 39, 0.07);
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  gap: 12px;
+}
+
+.panel-header h1,
+.panel-header h2,
+.panel-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.courses-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.search-input {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.course-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.course-item {
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  background: #ffffff;
+  padding: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.course-item.active {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.course-name {
+  font-weight: 700;
+  margin-bottom: 3px;
+}
+
+.course-meta {
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+
+.main-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.download-button {
+  border: none;
+  border-radius: 10px;
+  background: #1d4ed8;
+  color: white;
+  font-weight: 700;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+
+.download-button:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
+.module-list {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.module-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 10px;
+  background: #fff;
+}
+
+.module-name {
+  font-weight: 700;
+}
+
+.module-meta {
+  color: #6b7280;
+  font-size: 0.85rem;
+  margin-top: 2px;
+}
+
+.progress-panel {
+  margin-top: auto;
+  min-height: 260px;
+}
+
+.events-list {
+  margin-top: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 8px;
+  height: 180px;
+  overflow: auto;
+  font-size: 0.85rem;
+}
+
+.event-line {
+  margin-bottom: 6px;
+}
+
+.status-failed {
+  color: #b91c1c;
+}
+
+.status-done {
+  color: #166534;
+}
+
+.status-skipped {
+  color: #92400e;
+}
+
+.summary-box {
+  border-radius: 10px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  padding: 10px;
+  font-size: 0.9rem;
+}
+
+.failure-list {
+  margin-top: 10px;
+  border-radius: 10px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  padding: 10px;
+  font-size: 0.85rem;
+  max-height: 150px;
+  overflow: auto;
+}
+
+.empty-state {
+  color: #6b7280;
+  padding: 10px;
+}
+
+.error-banner {
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.toast {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  background: #0f172a;
+  color: #fff;
+  border-radius: 10px;
+  padding: 12px 14px;
+  z-index: 10;
+}
+
+@media (max-width: 920px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .progress-panel {
+    margin-top: 12px;
+  }
+}

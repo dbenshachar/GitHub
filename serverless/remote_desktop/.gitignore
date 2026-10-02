@@ -1,0 +1,5 @@
+.remote_desktop/
+__pycache__/
+*.pyc
+.pytest_cache/
+
