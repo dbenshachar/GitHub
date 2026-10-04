@@ -1,0 +1,194 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mini-functions
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mini-functions-router
+  namespace: mini-functions
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mini-functions-router
+  namespace: mini-functions
+rules:
+  - apiGroups: [batch]
+    resources: [jobs, cronjobs]
+    verbs: [create, get, list, delete]
+  - apiGroups: ['']
+    resources: [pods, pods/log]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mini-functions-router
+  namespace: mini-functions
+subjects:
+  - kind: ServiceAccount
+    name: mini-functions-router
+    namespace: mini-functions
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: mini-functions-router
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mini-functions-router
+  namespace: mini-functions
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mini-functions-router
+  template:
+    metadata:
+      labels:
+        app: mini-functions-router
+    spec:
+      serviceAccountName: mini-functions-router
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: mini-functions-router
+      containers:
+        - name: router
+          image: mini-functions:local
+          command: [python3, -u, -m, remote_desktop.function_router]
+          ports:
+            - containerPort: 8080
+          env:
+            - name: FUNCTION_IMAGE
+              value: mini-functions:local
+            - name: FUNCTION_ROUTER_URL
+              value: http://mini-functions-router.mini-functions.svc.cluster.local:8080
+            - name: FUNCTION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: mini-functions-auth
+                  key: token
+          resources:
+            requests:
+              cpu: 250m
+              memory: 128Mi
+            limits:
+              cpu: '1'
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mini-functions-router
+  namespace: mini-functions
+spec:
+  selector:
+    app: mini-functions-router
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: mini-functions-router
+  namespace: mini-functions
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: mini-functions-router
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 65
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: mini-functions-router
+  namespace: mini-functions
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: mini-functions-router
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: mini-functions-limits
+  namespace: mini-functions
+spec:
+  hard:
+    pods: '512'
+    requests.cpu: '128'
+    requests.memory: 128Gi
+    limits.cpu: '256'
+    limits.memory: 256Gi
+    count/jobs.batch: '1024'
+    count/cronjobs.batch: '128'
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: router-ingress
+  namespace: mini-functions
+spec:
+  podSelector:
+    matchLabels:
+      app: mini-functions-router
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: mini-functions
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: worker-no-ingress
+  namespace: mini-functions
+spec:
+  podSelector:
+    matchLabels:
+      app: mini-functions
+  policyTypes: [Ingress]
+  ingress: []

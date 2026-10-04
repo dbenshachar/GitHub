@@ -1,0 +1,3 @@
+write /STATE.TXT parent-only;
+fanout(4, "CHILD.MOS");
+print("Four independent guests submitted");

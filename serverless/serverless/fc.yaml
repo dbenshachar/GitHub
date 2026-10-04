@@ -1,0 +1,6 @@
+base: template://ubuntu
+vmType: vz
+nestedVirtualization: true
+cpus: 4
+memory: 8GiB
+mounts: []

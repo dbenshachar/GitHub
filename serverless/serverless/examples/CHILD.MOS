@@ -1,0 +1,5 @@
+# No parent disk, output, input, or memory was inherited.
+print("Fresh branch");
+let n = 0;
+while (n < 100) { n = n + 1; }
+print(n);

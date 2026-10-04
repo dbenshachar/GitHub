@@ -1,0 +1,5 @@
+.git
+.remote_desktop*
+__pycache__
+*.pyc
+tests
