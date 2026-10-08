@@ -67,14 +67,34 @@ def overlay(root):
     kernel.write_text(text)
 
 
-def build(source, output, *, cc="aarch64-elf-gcc", assembler="aarch64-elf-as", linker="aarch64-elf-ld"):
+def build(source, output, *, cc="aarch64-elf-gcc", assembler="aarch64-elf-as", linker="aarch64-elf-ld", protocol=1):
     output = Path(output).resolve()
     if output.exists():
         raise ValueError("build output must be a new directory")
     shutil.copytree(source, output, ignore=shutil.ignore_patterns(".git", "out", "kernel.elf", "kernel.bin", "*.img"))
     overlay(output)
+    if protocol == 2:
+        shutil.copyfile(Path(__file__).resolve().parents[1] / "guest/job.c", output / "kernel.c")
+        io = output / "src/io.c"
+        io.write_text(io.read_text().replace("uart_put(c);", "extern void job_printchar(char); job_printchar(c);"))
+        script = output / "src/program/script.c"
+        text = script.read_text()
+        anchor = '#define DONE }'
+        text = text.replace(anchor, anchor + '''
+    BUILTIN("fanout", 2)
+        extern int job_fanout(const char *, int);
+        int reverse = args[0].type == NUMBER;
+        char *name = text(p, args[reverse ? 1 : 0]); int64_t n = numeric(p, args[reverse ? 0 : 1]);
+        if (c->error || n < 1 || n > 256 || job_fanout(name, (int)n)) fail(p, "invalid fanout");
+        return number(0);
+    DONE
+''')
+        script.write_text(text)
     subprocess.run(["make", "-C", str(output), "kernel.elf", "out/mkfat32", f"CC={cc}", f"AS={assembler}", f"LD={linker}"], check=True)
-    (output / "job-runtime-v1").write_text("fail-fast\n")
+    if protocol == 1:
+        (output / "job-runtime-v1").write_text("fail-fast\n")
+    if protocol == 2:
+        (output / "job-runtime-v2").write_text("framed-uart-single-use\n")
     return output
 
 
@@ -85,5 +105,6 @@ if __name__ == "__main__":
     parser.add_argument("--cc", default="aarch64-elf-gcc")
     parser.add_argument("--assembler", default="aarch64-elf-as")
     parser.add_argument("--linker", default="aarch64-elf-ld")
+    parser.add_argument("--protocol", type=int, choices=(1, 2), default=1)
     args = parser.parse_args()
-    build(args.source, args.output, cc=args.cc, assembler=args.assembler, linker=args.linker)
+    build(args.source, args.output, cc=args.cc, assembler=args.assembler, linker=args.linker, protocol=args.protocol)

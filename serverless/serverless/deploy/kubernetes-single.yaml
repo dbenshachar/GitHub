@@ -1,0 +1,111 @@
+# One combined Go supervisor; aggregate CPU/memory match the standalone profile.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mini-functions
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mini-functions-router
+  namespace: mini-functions
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: mini-functions-router
+  template:
+    metadata:
+      labels:
+        app: mini-functions-router
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: supervisor
+          image: mini-functions:local
+          imagePullPolicy: IfNotPresent
+          command: [mini-functions]
+          args: [--role, standalone, --mini-os-root, /opt/mini_os, --listen, ":8080", --cpu-budget, "3", --memory-budget, "6144", --accel, auto, --schedule-state, /state/schedules.json]
+          env:
+            - name: FUNCTION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: mini-functions-auth
+                  key: token
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          resources:
+            requests:
+              cpu: '3'
+              memory: 6Gi
+            limits:
+              cpu: '3'
+              memory: 6Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: schedules
+              mountPath: /state
+            - name: scratch
+              mountPath: /tmp
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            failureThreshold: 180
+            periodSeconds: 1
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+      volumes:
+        - name: schedules
+          persistentVolumeClaim:
+            claimName: mini-functions-schedules
+        - name: scratch
+          emptyDir:
+            sizeLimit: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mini-functions-router
+  namespace: mini-functions
+spec:
+  type: NodePort
+  selector:
+    app: mini-functions-router
+  ports:
+    - port: 8080
+      targetPort: 8080
+      nodePort: 30080
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mini-functions-schedules
+  namespace: mini-functions
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi

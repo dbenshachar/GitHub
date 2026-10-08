@@ -22,6 +22,10 @@ async def benchmark(scheduler, spec, *, iterations=10, warm_runs=3, fanouts=(1, 
         raise ValueError("iterations and warm probes must be positive")
     if not fanouts or any(type(n) is not int or not 1 <= n <= scheduler.max_fanout for n in fanouts):
         raise ValueError("invalid benchmark fanout")
+    if hasattr(scheduler, "async_request"):
+        stats = await scheduler.async_request("GET", "/metrics")
+        if stats.get("backend", "").startswith("go-"):
+            return await benchmark_fresh_pool(scheduler, spec, iterations, warm_runs, fanouts)
     singles = [(await scheduler.invoke(replace(spec, benchmark_warm_runs=warm_runs))).metrics for _ in range(iterations)]
     report = {
         "created_at": datetime.now(timezone.utc).isoformat(), "host": platform.platform(),
@@ -61,4 +65,25 @@ async def benchmark(scheduler, spec, *, iterations=10, warm_runs=3, fanouts=(1, 
             starts.extend(child.metrics["startup_ms"] for child in children)
         report["fanout"][str(count)] = {"fanout_ms": summary(times), "child_startup_ms": summary(starts),
                                           "submit_ms": summary(submissions)}
+    return report
+
+
+async def benchmark_fresh_pool(scheduler, spec, iterations, warm_runs, fanouts):
+    """Warm means a never-used, prebooted guest, not repeated work in one guest."""
+    samples = [(await scheduler.invoke(replace(spec, benchmark_warm_runs=0))).metrics
+               for _ in range(iterations + warm_runs)]
+    report = {"backend": "go-supervisor", "notes": [
+        "Every invocation uses a never-used guest; pool_hit indicates prebooted assignment.",
+        "lifecycle_cpu_ms includes boot, assignment, execution, and shutdown.",
+        "startup_ms for a pool hit measures assignment; cold_startup_ms records its original boot.",
+        "Cold and warm distributions require samples of each type; an empty group is not a measurement."],
+        "single": {key: summary(s[key] for s in samples if key in s) for key in
+                   ("startup_ms", "execution_ms", "total_ms", "lifecycle_cpu_ms")},
+        "cold_latency_ms": summary(s["total_ms"] for s in samples if not s["pool_hit"]),
+        "warm_latency_ms": summary(s["total_ms"] for s in samples if s["pool_hit"]),
+        "raw": samples, "fanout": {}}
+    for count in fanouts:
+        results = [await scheduler.fanout(replace(spec, benchmark_warm_runs=0), count)
+                   for _ in range(iterations)]
+        report["fanout"][str(count)] = {"fanout_ms": summary(r.metrics["total_ms"] for r in results)}
     return report

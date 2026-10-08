@@ -3,18 +3,27 @@ FROM python:3.11-slim-bookworm AS build
 RUN apt-get update && apt-get install -y --no-install-recommends make gcc libc6-dev gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
     && rm -rf /var/lib/apt/lists/*
 COPY mini_os /src/mini_os
-COPY tools/build_mini_os.py /src/build_mini_os.py
-RUN python3 /src/build_mini_os.py /src/mini_os /build \
-    --cc aarch64-linux-gnu-gcc --assembler aarch64-linux-gnu-as --linker aarch64-linux-gnu-ld
+COPY tools/build_mini_os.py /src/tools/build_mini_os.py
+COPY guest /src/guest
+RUN python3 /src/tools/build_mini_os.py /src/mini_os /build \
+    --protocol 2 --cc aarch64-linux-gnu-gcc --assembler aarch64-linux-gnu-as --linker aarch64-linux-gnu-ld
+
+FROM golang:1.24-bookworm AS supervisor
+WORKDIR /src
+COPY go.mod ./
+COPY cmd ./cmd
+COPY internal ./internal
+RUN CGO_ENABLED=0 go build -trimpath -o /mini-functions ./cmd/mini-functions
 
 FROM python:3.11-slim-bookworm
 RUN apt-get update && apt-get install -y --no-install-recommends qemu-system-arm \
     && rm -rf /var/lib/apt/lists/*
+COPY --from=supervisor /mini-functions /usr/local/bin/mini-functions
+COPY --from=build /build/job-runtime-v2 /opt/mini_os/job-runtime-v2
 COPY --from=build /build/kernel.elf /opt/mini_os/kernel.elf
 COPY --from=build /build/out/mkfat32 /opt/mini_os/out/mkfat32
-COPY --from=build /build/job-runtime-v1 /opt/mini_os/job-runtime-v1
 COPY remote_desktop /opt/app/remote_desktop
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/opt/app
 USER 65534:65534
 WORKDIR /tmp
-ENTRYPOINT ["python3", "-u", "-m", "remote_desktop.function_worker"]
+ENTRYPOINT ["mini-functions", "--mini-os-root", "/opt/mini_os"]

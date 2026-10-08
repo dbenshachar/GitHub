@@ -18,6 +18,7 @@ def build_parser():
     for name in ("run", "schedule", "benchmark"):
         command = sub.add_parser(name)
         command.add_argument("script", type=Path, help="Mini OS .MOS script")
+        command.add_argument("--network", action="store_true", help="enable guest networking for explicit uploads/downloads")
         command.add_argument("--child", action="append", default=[], type=Path, help="registered child .MOS code file")
         command.add_argument("--router", default=os.environ.get("FUNCTION_ROUTER_URL"))
         command.add_argument("--token-env", default="FUNCTION_TOKEN")
@@ -44,7 +45,7 @@ async def execute(args):
     if len(set(names)) != len(names):
         raise ValueError("duplicate child script names")
     spec = FunctionSpec(args.script.read_text(), dict(zip(names, (p.read_text() for p in args.child))),
-                        args.memory, args.cpus, args.timeout)
+                        args.memory, args.cpus, args.timeout, network=args.network)
     if args.local:
         if args.command == "schedule":
             raise ValueError("cron schedules require the Kubernetes router")

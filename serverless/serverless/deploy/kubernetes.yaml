@@ -70,7 +70,8 @@ spec:
       containers:
         - name: router
           image: mini-functions:local
-          command: [python3, -u, -m, remote_desktop.function_router]
+          command: [mini-functions]
+          args: [--role, router, --listen, ":8080", --workers, "dns:mini-functions-worker.mini-functions.svc.cluster.local:8181"]
           ports:
             - containerPort: 8080
           env:
@@ -177,6 +178,9 @@ spec:
         - podSelector:
             matchLabels:
               app: mini-functions
+        - podSelector:
+            matchLabels:
+              app: mini-functions-worker
       ports:
         - protocol: TCP
           port: 8080
@@ -192,3 +196,153 @@ spec:
       app: mini-functions
   policyTypes: [Ingress]
   ingress: []
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mini-functions-worker
+  namespace: mini-functions
+spec:
+  replicas: 5
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 0
+  selector:
+    matchLabels:
+      app: mini-functions-worker
+  template:
+    metadata:
+      labels:
+        app: mini-functions-worker
+    spec:
+      automountServiceAccountToken: false
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: mini-functions-worker
+              topologyKey: kubernetes.io/hostname
+      terminationGracePeriodSeconds: 630
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: mini-functions-worker
+      containers:
+        - name: worker
+          image: mini-functions:local
+          command: [mini-functions]
+          args: [--role, worker, --listen, ":8181", --mini-os-root, /opt/mini_os, --cpu-budget, "2", --memory-budget, "1536", --accel, auto, --calibrate, "100", --pool-min, "4", --pool-max, "32"]
+          ports:
+            - containerPort: 8181
+          env:
+            - name: FUNCTION_ROUTER_URL
+              value: http://mini-functions-router.mini-functions.svc.cluster.local:8080
+            - name: FUNCTION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: mini-functions-auth
+                  key: token
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: FUNCTION_MEMORY_BUDGET_MB
+              value: '1536'
+            - name: FUNCTION_CPU_BUDGET
+              value: '2'
+            - name: FUNCTION_PREWARM_RUNS
+              value: '1'
+          resources:
+            requests:
+              cpu: 500m
+              memory: 768Mi
+            limits:
+              cpu: '2'
+              memory: 1536Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: scratch
+              mountPath: /tmp
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: 8181
+            periodSeconds: 2
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8181
+            periodSeconds: 2
+          livenessProbe:
+            tcpSocket:
+              port: 8181
+            periodSeconds: 10
+      volumes:
+        - name: scratch
+          emptyDir:
+            sizeLimit: 2Gi
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: mini-functions-worker
+  namespace: mini-functions
+spec:
+  minAvailable: 4
+  selector:
+    matchLabels:
+      app: mini-functions-worker
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: worker-pool-ingress
+  namespace: mini-functions
+spec:
+  podSelector:
+    matchLabels:
+      app: mini-functions-worker
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: mini-functions-router
+      ports:
+        - protocol: TCP
+          port: 8181
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mini-functions-worker
+  namespace: mini-functions
+spec:
+  clusterIP: None
+  selector:
+    app: mini-functions-worker
+  ports:
+    - port: 8181
+      targetPort: 8181

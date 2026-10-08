@@ -94,7 +94,7 @@ class ManifestTests(unittest.TestCase):
         child_spec = json.loads(next(v["value"] for v in env if v["name"] == "FUNCTION_SPEC"))
         self.assertEqual(child_spec["script"], "print(2);")
         self.assertEqual(child_spec["memory_mb"], 64)
-        self.assertEqual(set(child_spec), {"script", "scripts", "memory_mb", "cpus", "timeout_s", "benchmark_warm_runs"})
+        self.assertEqual(set(child_spec), {"script", "scripts", "memory_mb", "cpus", "timeout_s", "benchmark_warm_runs", "network"})
         with self.assertRaisesRegex(ValueError, "identity"):
             make_router(api).fanout("pod", "wrong-uid", 4, "CHILD.MOS", 1)
         with self.assertRaisesRegex(ValueError, "unknown child"):

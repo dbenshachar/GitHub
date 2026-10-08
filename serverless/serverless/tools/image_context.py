@@ -12,5 +12,6 @@ if __name__ == "__main__":
     args.output.mkdir(parents=True, exist_ok=False)
     repository = Path(__file__).resolve().parents[1]
     shutil.copytree(args.mini_os, args.output / "mini_os", ignore=shutil.ignore_patterns(".git", "out", "*.img", "kernel.elf", "kernel.bin"))
-    for directory in ("remote_desktop", "tools", "containers"):
+    shutil.copyfile(repository / "go.mod", args.output / "go.mod")
+    for directory in ("remote_desktop", "tools", "containers", "cmd", "internal", "guest"):
         shutil.copytree(repository / directory, args.output / directory, ignore=shutil.ignore_patterns("__pycache__"))

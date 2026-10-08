@@ -3,3 +3,9 @@ __pycache__/
 *.pyc
 .pytest_cache/
 benchmark*.json
+.load-test/
+load-worker-pool.json
+
+.go-cache/
+.mini-runtime-v2/
+load-go.json

@@ -98,7 +98,7 @@ def bridge(submit):
         thread.join(timeout=5)
 
 
-def execute(spec: FunctionSpec, root: Path, submit, *, qemu_bin="qemu-system-aarch64"):
+def execute(spec: FunctionSpec, root: Path, submit, *, qemu_bin="qemu-system-aarch64", stop_event=None):
     root = Path(root)
     if not (root / "job-runtime-v1").is_file():
         raise RuntimeError("build the fail-fast Mini OS job runtime with tools/build_mini_os.py")
@@ -143,6 +143,8 @@ def execute(spec: FunctionSpec, root: Path, submit, *, qemu_bin="qemu-system-aar
         def prompt():
             current = bytearray()
             while not current.endswith(b"\n> "):
+                if stop_event is not None and stop_event.is_set():
+                    raise RuntimeError("Mini OS job cancelled")
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     raise TimeoutError("Mini OS job exceeded its deadline")

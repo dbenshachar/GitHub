@@ -4,3 +4,5 @@ nestedVirtualization: true
 cpus: 4
 memory: 8GiB
 mounts: []
+networks:
+  - vzNAT: true

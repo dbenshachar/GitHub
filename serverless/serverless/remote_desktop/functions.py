@@ -24,12 +24,15 @@ class FunctionSpec:
     cpus: float = 1
     timeout_s: int = 600
     benchmark_warm_runs: int = 0
+    network: bool = False
 
     def __post_init__(self):
+        if type(self.network) is not bool:
+            raise ValueError("network must be a boolean")
         if type(self.timeout_s) is not int or not 1 <= self.timeout_s <= 600:
             raise ValueError("jobs require an integer deadline between 1 and 600 seconds")
-        if type(self.memory_mb) is not int or not 32 <= self.memory_mb <= 4096:
-            raise ValueError("guest memory must be between 32 and 4096 MiB")
+        if type(self.memory_mb) is not int or not 8 <= self.memory_mb <= 4096:
+            raise ValueError("guest memory must be between 8 and 4096 MiB")
         if not math.isfinite(self.cpus) or not 0 < self.cpus <= 64:
             raise ValueError("invalid CPU limit")
         if type(self.benchmark_warm_runs) is not int or not 0 <= self.benchmark_warm_runs <= 100:
